@@ -3,6 +3,9 @@ pandas
 langchain
 langchain-ollama
 langchain-experimental
+langchain-elasticsearch
 elasticsearch
 tabulate
 requests
+pypdf
+pymupdf4llm
