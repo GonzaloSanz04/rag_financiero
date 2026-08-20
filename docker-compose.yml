@@ -33,7 +33,7 @@ services:
       - ./data:/app/data
     environment:
       - ELASTICSEARCH_URL=http://elasticsearch:9200
-      - OLLAMA_URL=http://ollama:11434
+      - OLLAMA_BASE_URL=http://ollama:11434
     depends_on:
       - elasticsearch
       - ollama

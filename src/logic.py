@@ -1,5 +1,6 @@
 import pandas as pd
 import pymupdf4llm
+import os
 
 from langchain_ollama import OllamaLLM
 from langchain_experimental.agents.agent_toolkits import create_pandas_dataframe_agent
@@ -13,6 +14,10 @@ from langchain_core.prompts import PromptTemplate, ChatPromptTemplate
 from langchain_core.runnables import RunnablePassthrough
 from langchain_core.output_parsers import StrOutputParser
 
+OLLAMA_BASE_URL = os.environ.get("OLLAMA_BASE_URL", "http://ollama:11434")
+LLM_MODEL = os.environ.get("OLLAMA_LLM_MODEL", "qwen2.5:7b")
+EMBEDDING_MODEL = os.environ.get("OLLAMA_EMBEDDING_MODEL", "nomic-embed-text")
+ELASTICSEARCH_URL = os.environ.get("ELASTICSEARCH_URL", "http://elasticsearch:9200")
 
 def load_and_clean_portfolio(csv_path: str) -> pd.DataFrame:
     """
@@ -58,7 +63,7 @@ def get_portfolio_agent(csv_path: str):
     
     # 2. Inicializamos el modelo (igual que en la interfaz, pero con temperature=0 
     # para que sea analítico y no invente datos)
-    llm = OllamaLLM(model="qwen2.5:7b", base_url="http://ollama:11434", temperature=0)
+    llm = OllamaLLM(model=LLM_MODEL, base_url=OLLAMA_BASE_URL, temperature=0)
     
     # 3. Creamos el agente
     agent = create_pandas_dataframe_agent(
@@ -78,7 +83,7 @@ def get_financial_chunks(pdf_path: str, doc_name: str):
     markdown_content = pymupdf4llm.to_markdown(pdf_path)
     
     # 2. Inicializar chunkers
-    embeddings = OllamaEmbeddings(model="nomic-embed-text", base_url="http://ollama:11434")
+    embeddings = OllamaEmbeddings(model=EMBEDDING_MODEL, base_url=OLLAMA_BASE_URL)
     semantic_chunker = SemanticChunker(embeddings)
     recursive_chunker = RecursiveCharacterTextSplitter(chunk_size=800, chunk_overlap=150)
     
@@ -126,12 +131,12 @@ def index_financial_documents(pdf_path: str, doc_name: str, index_name: str = "i
         documents.append(doc)
         
     # 3. Inicializar embeddings e indexar
-    embeddings = OllamaEmbeddings(model="nomic-embed-text", base_url="http://ollama:11434")
+    embeddings = OllamaEmbeddings(model=EMBEDDING_MODEL, base_url=OLLAMA_BASE_URL)
     
     ElasticsearchStore.from_documents(
         documents=documents,
         embedding=embeddings,
-        es_url="http://elasticsearch:9200",
+        es_url=ELASTICSEARCH_URL,
         index_name=index_name,
     )
     
@@ -140,7 +145,7 @@ def index_financial_documents(pdf_path: str, doc_name: str, index_name: str = "i
 def classify_query(query: str) -> str:
     """Clasifica la pregunta para decidir la ruta de ejecución."""
     # Usamos temperatura 0 para que no sea creativo, solo analítico
-    llm = OllamaLLM(model="qwen2.5:7b", base_url="http://ollama:11434", temperature=0)
+    llm = OllamaLLM(model=LLM_MODEL, base_url=OLLAMA_BASE_URL, temperature=0)
     
     template = """You are an expert classifier for RAG systems. Your task is to read the user's question and decide which database to send it to.
     
@@ -160,13 +165,13 @@ def classify_query(query: str) -> str:
     decision = chain.invoke({"query": query}).strip().upper()
     return decision
 
-    def ask_elasticsearch(query: str, index_name: str = "informes_financieros") -> str:
+def ask_elasticsearch(query: str, index_name: str = "informes_financieros") -> str:
     """Busca en Elasticsearch y responde usando los fragmentos recuperados."""
     # 1. Conexión a la base vectorial
-    embeddings = OllamaEmbeddings(model="nomic-embed-text", base_url="http://ollama:11434")
+    embeddings = OllamaEmbeddings(model=EMBEDDING_MODEL, base_url=OLLAMA_BASE_URL)
     vector_store = ElasticsearchStore(
         embedding=embeddings,
-        es_url="http://elasticsearch:9200",
+        es_url=ELASTICSEARCH_URL,
         index_name=index_name,
     )
     
@@ -174,7 +179,7 @@ def classify_query(query: str) -> str:
     retriever = vector_store.as_retriever(search_kwargs={"k": 3})
     
     # 2. Configurar el LLM
-    llm = OllamaLLM(model="qwen2.5:7b", base_url="http://ollama:11434", temperature=0)
+    llm = OllamaLLM(model=LLM_MODEL, base_url=OLLAMA_BASE_URL, temperature=0)
     
     # 3. Crear el prompt estricto
     template = """Use the following context excerpts to answer the question at the end.

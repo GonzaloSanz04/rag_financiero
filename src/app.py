@@ -1,9 +1,8 @@
 import streamlit as st
 import requests
 import os
-from langchain_ollama import OllamaLLM
 
-from logic import get_portfolio_agent, classify_query, index_financial_documents, ask_elasticsearch
+from logic import get_portfolio_agent, classify_query, index_financial_documents, ask_elasticsearch, OLLAMA_BASE_URL, LLM_MODEL
 
 
 # --- BLOQUE DE CALENTAMIENTO ---
@@ -12,8 +11,8 @@ def preload_model():
     """Envía una petición en blanco a Ollama al iniciar la app para cargar el modelo en RAM"""
     try:
         requests.post(
-            "http://ollama:11434/api/generate", 
-            json={"model": "qwen2.5:7b"}, 
+            f"{OLLAMA_BASE_URL}/api/generate", 
+            json={"model": LLM_MODEL}, 
             timeout=5
         )
     except Exception:
@@ -33,12 +32,13 @@ with st.sidebar:
     if st.button("Procesar e Indexar"):
         if uploaded_file and doc_name_input:
             with st.spinner("Aplicando triple fragmentación e indexando..."):
-                temp_path = os.path.join("data", uploaded_file.name)
-                with open(temp_path, "wb") as f:
-                    f.write(uploaded_file.getbuffer())
+                safe_filename = os.path.basename(uploaded_file.name)
+                os.makedirs("data", exist_ok=True)
+                temp_path = os.path.join("data", safe_filename)
                 
                 try:
-                    # Usamos el nombre correcto de la función
+                    with open(temp_path, "wb") as f:
+                        f.write(uploaded_file.getbuffer())
                     num_chunks = index_financial_documents(temp_path, doc_name_input)
                     st.success(f"¡Éxito! {num_chunks} fragmentos indexados en Elasticsearch.")
                 except Exception as e:
