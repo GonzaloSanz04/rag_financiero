@@ -5,3 +5,4 @@ langchain-ollama
 langchain-experimental
 elasticsearch
 tabulate
+requests

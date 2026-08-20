@@ -1,7 +1,23 @@
 import streamlit as st
+import requests
 from langchain_ollama import OllamaLLM
 
 from logic import get_portfolio_agent
+
+# --- BLOQUE DE CALENTAMIENTO ---
+@st.cache_resource
+def preload_model():
+    """Envía una petición en blanco a Ollama al iniciar la app para cargar el modelo en RAM"""
+    try:
+        # Al no enviar el parámetro "prompt", Ollama solo carga el modelo y responde al instante
+        requests.post(
+            "http://ollama:11434/api/generate", 
+            json={"model": "qwen2.5:7b"}, 
+            timeout=5
+        )
+    except Exception:
+        pass
+preload_model()
 
 # Configuración básica de la interfaz
 st.set_page_config(page_title="Asistente Financiero Dual", layout="wide")
