@@ -9,7 +9,9 @@ from langchain_experimental.text_splitter import SemanticChunker
 from langchain_ollama import OllamaEmbeddings
 from langchain_elasticsearch import ElasticsearchStore
 from langchain_core.documents import Document
-from langchain_core.prompts import PromptTemplate
+from langchain_core.prompts import PromptTemplate, ChatPromptTemplate
+from langchain_core.runnables import RunnablePassthrough
+from langchain_core.output_parsers import StrOutputParser
 
 
 def load_and_clean_portfolio(csv_path: str) -> pd.DataFrame:
@@ -157,3 +159,47 @@ def classify_query(query: str) -> str:
     # Ejecutamos y limpiamos espacios o saltos de línea residuales
     decision = chain.invoke({"query": query}).strip().upper()
     return decision
+
+    def ask_elasticsearch(query: str, index_name: str = "informes_financieros") -> str:
+    """Busca en Elasticsearch y responde usando los fragmentos recuperados."""
+    # 1. Conexión a la base vectorial
+    embeddings = OllamaEmbeddings(model="nomic-embed-text", base_url="http://ollama:11434")
+    vector_store = ElasticsearchStore(
+        embedding=embeddings,
+        es_url="http://elasticsearch:9200",
+        index_name=index_name,
+    )
+    
+    # Configuramos el retriever para traer los 3 fragmentos más relevantes
+    retriever = vector_store.as_retriever(search_kwargs={"k": 3})
+    
+    # 2. Configurar el LLM
+    llm = OllamaLLM(model="qwen2.5:7b", base_url="http://ollama:11434", temperature=0)
+    
+    # 3. Crear el prompt estricto
+    template = """Use the following context excerpts to answer the question at the end.
+    If you do not know the answer or it is not in the context, simply state that you do not have that information. Do not invent data under any circumstances.
+    
+    Context:
+    {context}
+    
+    Question: {question}
+    
+    Helpful and direct answer:"""
+    prompt = ChatPromptTemplate.from_template(template)
+    
+    # 4. Formatear documentos aprovechando el contexto padre
+    def format_docs(docs):
+        # Si existe el parent_context lo usamos, si no, usamos el texto normal
+        return "\n\n".join(doc.metadata.get("parent_context", doc.page_content) for doc in docs)
+    
+    # 5. Cadena LCEL (LangChain Expression Language)
+    rag_chain = (
+        {"context": retriever | format_docs, "question": RunnablePassthrough()}
+        | prompt
+        | llm
+        | StrOutputParser()
+    )
+    
+    # Ejecutamos la cadena completa
+    return rag_chain.invoke(query)

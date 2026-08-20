@@ -3,8 +3,8 @@ import requests
 import os
 from langchain_ollama import OllamaLLM
 
-# IMPORTANTE: Los nombres deben coincidir con logic.py
-from logic import get_portfolio_agent, classify_query, index_financial_documents
+from logic import get_portfolio_agent, classify_query, index_financial_documents, ask_elasticsearch
+
 
 # --- BLOQUE DE CALENTAMIENTO ---
 @st.cache_resource
@@ -82,8 +82,8 @@ if prompt := st.chat_input("Escribe tu consulta (ej. '¿Qué es un ETF?')..."):
                     final_answer = response.get("output", "No pude generar una respuesta matemática.")
                 else:
                     st.toast("Buscando en la base documental...", icon="📄")
-                    final_answer = "Has elegido la ruta Elasticsearch. (¡Próximamente conectaremos la búsqueda!)"
-                
+                    # AQUÍ CONECTAMOS LA BÚSQUEDA REAL
+                    final_answer = ask_elasticsearch(prompt)
                 st.markdown(final_answer)
                 st.session_state.messages.append({"role": "assistant", "content": final_answer})
             except Exception as e:
